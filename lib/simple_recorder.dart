@@ -21,6 +21,7 @@ class SimpleRecorder extends StatefulWidget {
 
 class _SimpleRecorderState extends State<SimpleRecorder> {
 
+  String _recorderTxt = '00:00:00';
   final FlutterSoundPlayer _mPlayer = FlutterSoundPlayer();
   final FlutterSoundRecorder _mRecorder = FlutterSoundRecorder();
 
@@ -63,6 +64,8 @@ class _SimpleRecorderState extends State<SimpleRecorder> {
     }
 
     await _mRecorder.openRecorder();
+    await _mRecorder.setSubscriptionDuration(Duration(milliseconds: 10));
+    await initializeDateFormatting();
     if (!await _mRecorder.isEncoderSupported(_codec) && kIsWeb) {
       _codec = Codec.opusWebM;
       _mPath = 'tau_file.webm';
@@ -97,6 +100,16 @@ class _SimpleRecorderState extends State<SimpleRecorder> {
 
   void record() {
 
+
+    StreamSubscription _recorderSubscription = _mRecorder.onProgress?.listen((e) {
+      var date = DateTime.fromMillisecondsSinceEpoch(e.duration.inMilliseconds, isUtc: true);
+      var txt = DateFormat('mm:ss:SS', 'en_GB').format(date);
+
+      setState(() {
+        _recorderTxt = txt.substring(0, 8);
+      });
+    }) as StreamSubscription;
+    _recorderSubscription.cancel();
 
     _mRecorder
         .startRecorder(
@@ -189,7 +202,26 @@ class _SimpleRecorderState extends State<SimpleRecorder> {
                   : 'Recorder is stopped'),
             ]),
           ),
-
+          Container(
+            margin: const EdgeInsets.all(3),
+            padding: const EdgeInsets.all(3),
+            height: 80,
+            width: double.infinity,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFAF0E6),
+              border: Border.all(
+                color: Colors.indigo,
+                width: 3,
+              ),
+            ),
+            child: Row(children: [
+              const SizedBox(
+                width: 20,
+              ),
+              Text(_recorderTxt),
+            ]),
+          ),
           Container(
             margin: const EdgeInsets.all(3),
             padding: const EdgeInsets.all(3),
