@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:flutter_sound_platform_interface/flutter_sound_recorder_platform_interface.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:intl/intl.dart' show DateFormat;
+import 'package:intl/date_symbol_data_local.dart';
 
 typedef _Fn = void Function();
 
@@ -18,6 +20,7 @@ class SimpleRecorder extends StatefulWidget {
 }
 
 class _SimpleRecorderState extends State<SimpleRecorder> {
+
   final FlutterSoundPlayer _mPlayer = FlutterSoundPlayer();
   final FlutterSoundRecorder _mRecorder = FlutterSoundRecorder();
 
@@ -58,6 +61,7 @@ class _SimpleRecorderState extends State<SimpleRecorder> {
         throw RecordingPermissionException('Microphone permission not granted');
       }
     }
+
     await _mRecorder.openRecorder();
     if (!await _mRecorder.isEncoderSupported(_codec) && kIsWeb) {
       _codec = Codec.opusWebM;
@@ -92,13 +96,14 @@ class _SimpleRecorderState extends State<SimpleRecorder> {
   // ----------------------  Here is the code for recording and playback -------
 
   void record() {
+
+
     _mRecorder
         .startRecorder(
       toFile: _mPath,
       codec: _codec,
       audioSource: theSource,
-    )
-        .then((value) {
+    ).then((value) {
       setState(() {});
     });
   }
@@ -141,7 +146,6 @@ class _SimpleRecorderState extends State<SimpleRecorder> {
     if (!_mRecorderIsInited || !_mPlayer.isStopped) {
       return null;
     }
-    if(_mRecorder.isStopped){
     return _mRecorder.isStopped ? record : stopRecorder;
   }
 
@@ -185,26 +189,7 @@ class _SimpleRecorderState extends State<SimpleRecorder> {
                   : 'Recorder is stopped'),
             ]),
           ),
-          Container(
-            margin: const EdgeInsets.all(3),
-            padding: const EdgeInsets.all(3),
-            height: 80,
-            width: double.infinity,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFAF0E6),
-              border: Border.all(
-                color: Colors.indigo,
-                width: 3,
-              ),
-            ),
-            child: Row(children: [
-              const SizedBox(
-                width: 20,
-              ),
-              Text("Contador"),
-            ]),
-          ),
+
           Container(
             margin: const EdgeInsets.all(3),
             padding: const EdgeInsets.all(3),
