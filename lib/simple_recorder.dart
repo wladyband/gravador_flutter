@@ -21,7 +21,6 @@ class SimpleRecorder extends StatefulWidget {
 
 class _SimpleRecorderState extends State<SimpleRecorder> {
 
-  String _recorderTxt = '00:00:00';
   final FlutterSoundPlayer _mPlayer = FlutterSoundPlayer();
   final FlutterSoundRecorder _mRecorder = FlutterSoundRecorder();
 
@@ -64,8 +63,6 @@ class _SimpleRecorderState extends State<SimpleRecorder> {
     }
 
     await _mRecorder.openRecorder();
-    await _mRecorder.setSubscriptionDuration(Duration(milliseconds: 10));
-    await initializeDateFormatting();
     if (!await _mRecorder.isEncoderSupported(_codec) && kIsWeb) {
       _codec = Codec.opusWebM;
       _mPath = 'tau_file.webm';
@@ -99,18 +96,6 @@ class _SimpleRecorderState extends State<SimpleRecorder> {
   // ----------------------  Here is the code for recording and playback -------
 
   void record() {
-
-
-    StreamSubscription _recorderSubscription = _mRecorder.onProgress?.listen((e) {
-      var date = DateTime.fromMillisecondsSinceEpoch(e.duration.inMilliseconds, isUtc: true);
-      var txt = DateFormat('mm:ss:SS', 'en_GB').format(date);
-
-      setState(() {
-        _recorderTxt = txt.substring(0, 8);
-      });
-    }) as StreamSubscription;
-    _recorderSubscription.cancel();
-
     _mRecorder
         .startRecorder(
       toFile: _mPath,
@@ -219,7 +204,7 @@ class _SimpleRecorderState extends State<SimpleRecorder> {
               const SizedBox(
                 width: 20,
               ),
-              Text(_recorderTxt),
+              Text("Contador"),
             ]),
           ),
           Container(
