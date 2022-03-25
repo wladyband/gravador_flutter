@@ -7,6 +7,7 @@ import 'package:flutter_sound_platform_interface/flutter_sound_recorder_platform
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:record/timer_controller.dart';
 
 typedef _Fn = void Function();
 
@@ -21,6 +22,7 @@ class SimpleRecorder extends StatefulWidget {
 
 class _SimpleRecorderState extends State<SimpleRecorder> {
 
+  final timerController = TimerController(0);
   final FlutterSoundPlayer _mPlayer = FlutterSoundPlayer();
   final FlutterSoundRecorder _mRecorder = FlutterSoundRecorder();
 
@@ -147,6 +149,8 @@ class _SimpleRecorderState extends State<SimpleRecorder> {
     return _mRecorder.isStopped ? record : stopRecorder;
   }
 
+
+
   _Fn? getPlaybackFn() {
     if (!_mPlayerIsInited || !_mplaybackReady || !_mRecorder.isStopped) {
       return null;
@@ -172,21 +176,35 @@ class _SimpleRecorderState extends State<SimpleRecorder> {
                 width: 3,
               ),
             ),
-            child: Row(children: [
-              ElevatedButton(
-                onPressed: getRecorderFn(),
-                //color: Colors.white,
-                //disabledColor: Colors.grey,
-                child: Text(_mRecorder.isRecording ? 'Stop' : 'Record'),
-              ),
-              const SizedBox(
-                width: 20,
-              ),
-              Text(_mRecorder.isRecording
-                  ? 'Recording in progress'
-                  : 'Recorder is stopped'),
-            ]),
+            child: ValueListenableBuilder(
+              valueListenable: timerController,
+              builder: (_, value, __) {
+                return ElevatedButton(
+                  onPressed: timerController.startTime,
+
+                  child: Visibility(
+                    visible: timerController.running,
+                    child: const Text('stop'),
+                    replacement: const Text('start'),
+                  ),
+                );
+              },),
           ),
+      /*child: Row(children: [
+      ElevatedButton(
+      onPressed: getRecorderFn(),
+      //color: Colors.white,
+      //disabledColor: Colors.grey,
+      child: Text(_mRecorder.isRecording ? 'Stop' : 'Record'),
+      ),
+      const SizedBox(
+      width: 20,
+      ),
+      Text(_mRecorder.isRecording
+      ? 'Recording in progress'
+          : 'Recorder is stopped'),
+      ]),
+      ),*/
           Container(
             margin: const EdgeInsets.all(3),
             padding: const EdgeInsets.all(3),
@@ -204,7 +222,16 @@ class _SimpleRecorderState extends State<SimpleRecorder> {
               const SizedBox(
                 width: 20,
               ),
-              Text("Contador"),
+              Center(
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: timerController,
+                    builder: (_, value, __) {
+                      return  Text(
+                          '${timerController.hour}:${timerController.minutes}:${timerController.seconds}'
+                      );
+                    },
+                  ),
+              ),
             ]),
           ),
           Container(
