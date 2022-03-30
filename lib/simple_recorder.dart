@@ -1,17 +1,9 @@
-import 'dart:async';
-import 'package:audio_session/audio_session.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:flutter_sound_platform_interface/flutter_sound_recorder_platform_interface.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:intl/intl.dart' show DateFormat;
-import 'package:intl/date_symbol_data_local.dart';
 import 'package:record/timer_controller.dart';
-
-typedef _Fn = void Function();
-
-const theSource = AudioSource.microphone;
 
 class SimpleRecorder extends StatefulWidget {
   const SimpleRecorder({Key? key}) : super(key: key);
@@ -21,258 +13,204 @@ class SimpleRecorder extends StatefulWidget {
 }
 
 class _SimpleRecorderState extends State<SimpleRecorder> {
-
-  final timerController = TimerController(0);
-  final FlutterSoundPlayer _mPlayer = FlutterSoundPlayer();
   final FlutterSoundRecorder _mRecorder = FlutterSoundRecorder();
+  final FlutterSoundPlayer _mPlayer = FlutterSoundPlayer();
 
-  Codec _codec = Codec.aacMP4;
-  String _mPath = 'tau_file.mp4';
+  final _timerController = TimerController();
+
   bool _mPlayerIsInited = false;
   bool _mRecorderIsInited = false;
   bool _mplaybackReady = false;
 
   @override
   void initState() {
-    _mPlayer.openPlayer().then((value) {
-      setState(() {
-        _mPlayerIsInited = true;
+    Permission.microphone.request().then((status) {
+      if (status != PermissionStatus.granted) {
+        throw RecordingPermissionException('Microphone permission not granted');
+      }
+
+      _mRecorder.openRecorder().then((value) {
+        setState(() {
+          _mRecorderIsInited = true;
+        });
+      });
+
+      _mPlayer.openPlayer().then((value) {
+        setState(() {
+          _mPlayerIsInited = true;
+        });
       });
     });
 
-    openTheRecorder().then((value) {
-      setState(() {
-        _mRecorderIsInited = true;
-      });
-    });
     super.initState();
   }
 
   @override
   void dispose() {
-    _mPlayer.closePlayer();
-
     _mRecorder.closeRecorder();
+    _mPlayer.closePlayer();
+    _timerController.reset();
+
     super.dispose();
   }
 
-  Future<void> openTheRecorder() async {
-    if (!kIsWeb) {
-      var status = await Permission.microphone.request();
-      if (status != PermissionStatus.granted) {
-        throw RecordingPermissionException('Microphone permission not granted');
-      }
+  void onRecordPressed() {
+    if (!_mRecorderIsInited || !_mPlayer.isStopped) {
+      return;
     }
 
-    await _mRecorder.openRecorder();
-    if (!await _mRecorder.isEncoderSupported(_codec) && kIsWeb) {
-      _codec = Codec.opusWebM;
-      _mPath = 'tau_file.webm';
-      if (!await _mRecorder.isEncoderSupported(_codec) && kIsWeb) {
-        _mRecorderIsInited = true;
-        return;
-      }
-    }
-    final session = await AudioSession.instance;
-    await session.configure(AudioSessionConfiguration(
-      avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
-      avAudioSessionCategoryOptions:
-      AVAudioSessionCategoryOptions.allowBluetooth |
-      AVAudioSessionCategoryOptions.defaultToSpeaker,
-      avAudioSessionMode: AVAudioSessionMode.spokenAudio,
-      avAudioSessionRouteSharingPolicy:
-      AVAudioSessionRouteSharingPolicy.defaultPolicy,
-      avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
-      androidAudioAttributes: const AndroidAudioAttributes(
-        contentType: AndroidAudioContentType.speech,
-        flags: AndroidAudioFlags.none,
-        usage: AndroidAudioUsage.voiceCommunication,
-      ),
-      androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-      androidWillPauseWhenDucked: true,
-    ));
-
-    _mRecorderIsInited = true;
+    _mRecorder.isStopped ? record() : stopRecorder();
   }
 
-  // ----------------------  Here is the code for recording and playback -------
+  void onPlayPressed() {
+    if (!_mPlayerIsInited || !_mplaybackReady || !_mRecorder.isStopped) {
+      return;
+    }
 
-  void record() {
-    _mRecorder
-        .startRecorder(
-      toFile: _mPath,
-      codec: _codec,
-      audioSource: theSource,
-    ).then((value) {
-      setState(() {});
+    _mPlayer.isStopped ? play() : stopPlayer();
+  }
+
+  void record() async {
+    _timerController.reset();
+
+    await _mRecorder.startRecorder(
+      toFile: 'tau_file.mp4',
+      codec: Codec.aacMP4,
+      audioSource: AudioSource.microphone,
+    );
+
+    _timerController.start();
+
+    setState(() {
+      _mplaybackReady = false;
     });
   }
 
   void stopRecorder() async {
-    await _mRecorder.stopRecorder().then((value) {
-      setState(() {
-        //var url = value;
-        _mplaybackReady = true;
-      });
+    await _mRecorder.stopRecorder();
+
+    _timerController.stop();
+
+    setState(() {
+      _mplaybackReady = true;
     });
   }
 
-  void play() {
-    assert(_mPlayerIsInited &&
-        _mplaybackReady &&
-        _mRecorder.isStopped &&
-        _mPlayer.isStopped);
-    _mPlayer
-        .startPlayer(
-        fromURI: _mPath,
-        //codec: kIsWeb ? Codec.opusWebM : Codec.aacADTS,
-        whenFinished: () {
-          setState(() {});
-        })
-        .then((value) {
-      setState(() {});
-    });
-  }
-
-  void stopPlayer() {
-    _mPlayer.stopPlayer().then((value) {
-      setState(() {});
-    });
-  }
-
-// ----------------------------- UI --------------------------------------------
-
-  _Fn? getRecorderFn() {
-    if (!_mRecorderIsInited || !_mPlayer.isStopped) {
-      return null;
+  void play() async {
+    if (!_mPlayerIsInited ||
+        !_mplaybackReady ||
+        !_mRecorder.isStopped ||
+        !_mPlayer.isStopped) {
+      return;
     }
-    return _mRecorder.isStopped ? record : stopRecorder;
+
+    await _mPlayer.startPlayer(
+      fromURI: 'tau_file.mp4',
+      whenFinished: () {
+        setState(() {});
+      },
+    );
+
+    setState(() {});
   }
 
-
-
-  _Fn? getPlaybackFn() {
-    if (!_mPlayerIsInited || !_mplaybackReady || !_mRecorder.isStopped) {
-      return null;
+  void stopPlayer() async {
+    if (!_mPlayerIsInited ||
+        !_mplaybackReady ||
+        !_mRecorder.isStopped ||
+        _mPlayer.isStopped) {
+      return;
     }
-    return _mPlayer.isStopped ? play : stopPlayer;
+
+    await _mPlayer.stopPlayer();
+
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    Widget makeBody() {
-      return Column(
-        children: [
-          Container(
-            margin: const EdgeInsets.all(3),
-            padding: const EdgeInsets.all(3),
-            height: 80,
-            width: double.infinity,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFAF0E6),
-              border: Border.all(
-                color: Colors.indigo,
-                width: 3,
-              ),
-            ),
-            child: ValueListenableBuilder(
-              valueListenable: timerController,
-              builder: (_, value, __) {
-                return ElevatedButton(
-                  onPressed: timerController.startTime,
-
-                  child: Visibility(
-                    visible: timerController.running,
-                    child: const Text('stop'),
-                    replacement: const Text('start'),
-                  ),
-                );
-              },),
-          ),
-      /*child: Row(children: [
-      ElevatedButton(
-      onPressed: getRecorderFn(),
-      //color: Colors.white,
-      //disabledColor: Colors.grey,
-      child: Text(_mRecorder.isRecording ? 'Stop' : 'Record'),
-      ),
-      const SizedBox(
-      width: 20,
-      ),
-      Text(_mRecorder.isRecording
-      ? 'Recording in progress'
-          : 'Recorder is stopped'),
-      ]),
-      ),*/
-          Container(
-            margin: const EdgeInsets.all(3),
-            padding: const EdgeInsets.all(3),
-            height: 80,
-            width: double.infinity,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFAF0E6),
-              border: Border.all(
-                color: Colors.indigo,
-                width: 3,
-              ),
-            ),
-            child: Row(children: [
-              const SizedBox(
-                width: 20,
-              ),
-              Center(
-                  child: ValueListenableBuilder<int>(
-                    valueListenable: timerController,
-                    builder: (_, value, __) {
-                      return  Text(
-                          '${timerController.hour}:${timerController.minutes}:${timerController.seconds}'
-                      );
-                    },
-                  ),
-              ),
-            ]),
-          ),
-          Container(
-            margin: const EdgeInsets.all(3),
-            padding: const EdgeInsets.all(3),
-            height: 80,
-            width: double.infinity,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFAF0E6),
-              border: Border.all(
-                color: Colors.indigo,
-                width: 3,
-              ),
-            ),
-            child: Row(children: [
-              ElevatedButton(
-                onPressed: getPlaybackFn(),
-                //color: Colors.white,
-                //disabledColor: Colors.grey,
-                child: Text(_mPlayer.isPlaying ? 'Stop' : 'Play'),
-              ),
-              const SizedBox(
-                width: 20,
-              ),
-              Text(_mPlayer.isPlaying
-                  ? 'Playback in progress'
-                  : 'Player is stopped'),
-
-            ]),
-          ),
-        ],
-      );
-    }
-
     return Scaffold(
       backgroundColor: Colors.blue,
       appBar: AppBar(
         title: const Text('Simple Recorder'),
       ),
-      body: makeBody(),
+      body: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.all(3),
+              padding: const EdgeInsets.all(3),
+              height: 80,
+              width: double.infinity,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: Color(0xFFFAF0E6),
+              ),
+              child: Row(children: [
+                ElevatedButton(
+                  onPressed: onRecordPressed,
+                  child: Icon(
+                    _mRecorder.isRecording
+                        ? Icons.stop_rounded
+                        : Icons.keyboard_voice_rounded,
+                  ),
+                ),
+                const SizedBox(
+                  width: 20,
+                ),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _mRecorder.isStopped
+                          ? 'Record is stopped'
+                          : 'Record in progress',
+                    ),
+                    ValueListenableBuilder<int>(
+                      valueListenable: _timerController,
+                      builder: (_, value, __) {
+                        return Text(
+                          '${_timerController.formattedTime}',
+                        );
+                      },
+                    )
+                  ],
+                ),
+              ]),
+            ),
+            Container(
+              margin: const EdgeInsets.all(3),
+              padding: const EdgeInsets.all(3),
+              height: 80,
+              width: double.infinity,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: Color(0xFFFAF0E6),
+              ),
+              child: Row(children: [
+                ElevatedButton(
+                  onPressed: onPlayPressed,
+                  child: Icon(
+                    _mPlayer.isPlaying
+                        ? Icons.stop_rounded
+                        : Icons.play_arrow_rounded,
+                  ),
+                ),
+                const SizedBox(
+                  width: 20,
+                ),
+                Text(
+                  _mPlayer.isStopped
+                      ? 'Player is stopped'
+                      : 'Playback in progress',
+                ),
+              ]),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

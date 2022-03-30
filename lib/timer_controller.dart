@@ -1,38 +1,42 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 
-class TimerController extends ValueNotifier<int>{
-  TimerController(int value) : super(value);
-  bool running = false;
+class TimerController extends ValueNotifier<int> {
+  Timer? _timer;
 
-  String get hour {
-    return '${(value / (60 * 60)).floor()}'.padLeft(2, '0');
+  TimerController({int initialValue = 0}) : super(initialValue);
+
+  get isRunning => _timer != null;
+
+  get isStopped => _timer == null;
+
+  get formattedTime {
+    final hours = value ~/ 3600;
+    final minutes = value ~/ 60;
+    final seconds = value % 60;
+
+    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
-  String get minutes {
-    return '${(value /  60).floor()}'.padLeft(2, '0');
+  void start() {
+    _startTimer();
   }
 
-  String get seconds {
-    return '${(value %  60).floor()}'.padLeft(2, '0');
+  void stop() {
+    _stopTimer();
   }
 
-  void startTime() {
-    if (!running) {
-      running = true;
-      Timer.periodic(const Duration(), (timer) {
-        if (!running){
-          timer.cancel();
-        } else {
-          value += 1;
-        }
-      });
-    } else {
-      running = false;
-    }
+  void reset() {
+    value = 0;
+    _stopTimer();
   }
 
-  void pauseTimer() => running = false;
-  void cleanTimer() => value = 0;
+  void _startTimer() {
+    _timer ??= Timer.periodic(const Duration(seconds: 1), (timer) => value++);
+  }
 
+  void _stopTimer() {
+    _timer?.cancel();
+    _timer = null;
+  }
 }
